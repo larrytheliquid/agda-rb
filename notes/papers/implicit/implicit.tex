@@ -1,0 +1,61 @@
+% Implicit arguments
+% Authors: Catarina Coquand and Ulf Norell
+
+%\documentclass[12pt,a4paper]{amsart}
+\documentclass[11pt]{llncs}
+
+% \usepackage{amsthm}
+% \newtheorem{theorem}{Theorem}[section]
+% \newtheorem{lemma}[theorem]{Lemma}
+% \newtheorem{corollary}[theorem]{Corollary}
+% \newtheorem{definition}[theorem]{Definition}
+
+\usepackage{epsf}
+\usepackage{epsfig}
+%\usepackage{isolatin1}
+%\usepackage{a4wide}
+\usepackage{verbatim}
+\usepackage{proof}
+\usepackage{latexsym}
+\usepackage{amssymb,amsmath}
+\usepackage{stmaryrd}
+\usepackage{ifthen}
+
+\input{lhs2TeXpreamble}
+\input{macros}
+
+\newcommand\NoteOnPatternMatching{1}
+\newcommand\DetailedProofs{0}
+
+\title{Type checking in the presence of meta-variables}
+\author{Ulf Norell and Catarina Coquand}
+\institute{Department of Computer Science and Engineering \\
+    Chalmers University of Technology \\
+    {\tt \{ulfn,catarina\}@cs.chalmers.se}
+}
+
+\begin{document}
+
+\maketitle
+
+\input{abstract}
+
+\section{Introduction} \input{introduction}
+
+\section{The underlying logic \Core} \input{core}
+
+\section{The type checking algorithm} \label{secRules} \input{rules}
+
+\section{Examples} \input{examples}
+
+\section{Proof of correctness} \label{secProof} \input{proof}
+
+\section{Conclusions and future work} \input{concl}
+
+\paragraph{Acknowledgement} \input{acknowledgement}
+
+\bibliography{../../../../bib/pmgrefs}
+\bibliographystyle{abbrv}
+
+\end{document}
+

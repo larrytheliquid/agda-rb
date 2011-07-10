@@ -1,0 +1,3 @@
+IrrelevantFamilyIndex.agda:26,3-11
+Failed to infer the value of dotted pattern
+when checking that the pattern .(suc n) has type Nat

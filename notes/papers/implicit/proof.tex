@@ -1,0 +1,497 @@
+
+The correctness of the algorithm relies on the fact that we only compute with
+well-typed terms.  This guarantees the existence of normal forms, and hence,
+ensures the termination of the type checking algorithm.
+
+The proof will be done in two stages: first we prove soundness in the absence
+of constraint solving, and then we prove that constraint solving is sound.
+
+\subsection{Soundness without constraint solving}
+
+There are a number of things we need to prove: that type checking preserves
+well-formed signatures, that it produces well-typed terms, that conversion
+checking is sound, and that new signatures respect the old signatures.
+Unfortunately these properties are all interdependent, so we cannot prove them
+separately.
+
+\begin{definition}[Signature extension] \label{defSigExt}
+    We say that $\Sigma'$ {\em extends} $\Sigma$ if for any {\Core}
+    judgement $J$, $\vdash_\Sigma J$ implies $\vdash_{\Sigma'} J$.
+\end{definition}
+
+Note that this definition admits both simple extensions--adding a new
+constant--and refinement, where we give a definition to a constant.
+\if \DetailedProofs 1
+This is expressed by the following two lemmas.
+
+\begin{lemma}[Signature weakening] \label{lemWeakenSig}
+    If $\Sigma' = \Ext \Sigma {c:A}$ and $\IsSigCS {\Sigma'}$ then $\Extends
+    {\Sigma'} \Sigma$.
+\end{lemma}
+
+\begin{lemma}[Signature refinement] \label{lemRefineSig}
+    Giving a definition to a constant in a signature is an extension of the
+    signature.
+\if \DetailedProofs 1
+    More precisely, if
+    \begin{itemize}
+	\item $\HasTypeCS {\Sigma_1} {} M A$
+	\item $\Sigma ~ = ~ \Ext {\Sigma_1} \Ext {\MetaDecl c A} \Sigma_2$
+	\item $\Sigma' ~ = ~ \Ext {\Sigma_1} \Ext {\IMetaDecl c A M} \Sigma_2$
+    \end{itemize}
+    then $\Extends {\Sigma'} \Sigma$.
+\fi
+\end{lemma}
+\fi
+
+\if \DetailedProofs 1
+\begin{proof}[Proofs]
+    In both lemmas any derivation using $\Sigma$ is immediately valid also with $\Sigma'$.
+\end{proof}
+\fi
+
+\if \DetailedProofs 1
+To express the soundness of conversion checking we need to define when a
+constraint is well-formed. Note that this is not the same as being true. For
+instance, $\TypeConstr {\mathit{Nat}} {\mathit{Bool}}$ is a well-formed
+constraint given $\mathit{Nat} : \SET$ and $\mathit{Bool} : \SET$ in the
+signature.
+
+\begin{definition}[Well-formed constraint]
+    A constraint if well-formed if the terms (or types) under consideration are
+    well-typed. 
+    \if \DetailedProofs 1
+    \[
+	\infer{ \ValidConstr \Sigma {\TypeConstr A B}}
+	{\begin{array}{l}
+	    \IsTypeCS \Sigma \Gamma A \\
+	    \IsTypeCS \Sigma \Gamma B 
+	\end{array}}
+    \qquad
+	\infer{ \ValidConstr \Sigma {\TermConstr M N A}}
+	{\begin{array}{l}
+	    \HasTypeCS \Sigma \Gamma M A \\
+	    \HasTypeCS \Sigma \Gamma N A \\
+	\end{array}}
+    \]
+    \else
+    For instace, $\TermConstr M N A$ is well-formed if $\HasTypeC
+    \Gamma M A$ and $\HasTypeC \Gamma N A$.
+    \fi
+\end{definition}
+\fi
+
+Now we are ready to state the soundness of the type checking algorithm in the
+absence of constraint solving.
+
+\begin{theorem}[Soundness of type checking] \label{thmSoundNoCs}
+    Type checking produces well-typed terms, conversion checking produces
+    well-formed constraints and if no constraints are produced, the conversion
+    is valid in {\Core}. Also, all rules produce well-formed extensions of the
+    signature.
+\if \DetailedProofs 1
+    \begin{itemize}
+
+	% is type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\IsType e A} {\Sigma'}
+		~ \wedge ~ \IsCtxCS \Sigma \Gamma \\
+		{} \implies \Extends {\Sigma'} {\Sigma}
+		~ \wedge ~ \IsTypeCS {\Sigma'} \Gamma A
+	    \end{array}$
+
+	% check type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\CheckType e A M} {\Sigma'}
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma A \\
+		{} \implies \Extends {\Sigma'} {\Sigma}
+		~ \wedge ~ \HasTypeCS {\Sigma'} \Gamma M A
+	    \end{array}$
+
+	% infer type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\InferType e A M} {\Sigma'}
+		~ \wedge ~ \IsCtxCS \Sigma \Gamma \\
+		{} \implies \Extends {\Sigma'} {\Sigma}
+		~ \wedge ~ \HasTypeCS {\Sigma'} \Gamma M A
+	    \end{array}$
+
+	% equal types
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\EqualType A B \Cs} {\Sigma'}
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma A
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma B
+		\\
+		{} \implies \Extends {\Sigma'} {\Sigma}
+		~ \wedge ~ \ValidConstr {\Sigma'} \Cs
+		~ \wedge ~ (\Cs = \emptyset \implies \EqualTypeCS {\Sigma'} \Gamma A B)
+	    \end{array}$
+
+	% equal terms
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\Equal M N A \Cs} {\Sigma'}
+		~ \wedge ~ \HasTypeCS \Sigma \Gamma M A
+		~ \wedge ~ \HasTypeCS \Sigma \Gamma N A
+		\\
+		{} \implies \Extends {\Sigma'} {\Sigma}
+		~ \wedge ~ \ValidConstr {\Sigma'} \Cs
+		~ \wedge ~ (\Cs = \emptyset \implies \EqualCS {\Sigma'} \Gamma M N A)
+	    \end{array}$
+
+    \end{itemize}
+
+    The statements for weak head normal form conversion ($\EqualWhnf M N A
+    \Cs$) and term sequence conversion ($\Equal {\bar M} {\bar N} \Delta \Cs$)
+    are equivalent to that of term conversion.
+\fi
+\end{theorem}
+
+\begin{proof}
+    By induction on the derivation.
+\if \DetailedProofs 1
+    Some interesting cases:
+    \begin{itemize}
+
+	\item {\em (TODO: Not so interesting)} In the type conversion case for
+	function spaces where the domains produce constraints, we have to use
+	Lemma~\ref{lemCoreSubstType}.
+
+	\item In the term conversion case where the terms are weak head
+	normalised we need subject reduction for weak head normalisation
+	(Lemma~\ref{lemCoreSubjectReduction}).
+
+	\item When checking conversion of terms with the same head we need an
+	inversion principle for application (Lemma~\ref{lemCoreAppInv}).
+
+	\item The most interesting case is the meta-variable instantiation
+	case, so let us spell that out in more detail.
+
+	The instantiation rule does not produce any constraints, so the only
+	thing we have to prove is that it constructs a valid extension of the
+	signature. This follows from the signature refinement lemma
+	(Lemma~\ref{lemRefineSig}) which can be applied if we prove that if
+	$\Sigma = \Ext {\Sigma_1} \Ext {\MetaDecl \alpha {B'}} \Sigma_2$ then
+	$\LAM {\bar x} M : {B'}$.
+
+	We have $\HasTypeCS \Sigma \Gamma {\alpha \, \bar x} A$ so $B'$ must
+	have the form $\PI {\bar x} \Delta B$. By Lemma~\ref{lemCoreAppInv} we
+	conclude that $\HasTypeCS \Sigma \Gamma {\bar x} \Delta$ and thus
+	$\HasTypeCS \Sigma \Gamma {\alpha \, \bar x} B$. Then by
+	Lemma~\ref{lemCoreEqType} $\EqualTypeCS \Sigma \Gamma A B$.
+
+	From $\HasTypeCS \Sigma \Gamma M A$ we get $\HasTypeCS \Sigma \Gamma M
+	B$ and using Lemma~\ref{lemCoreShadow}  $\HasTypeCS \Sigma \Gamma {\LAM
+	{\bar x} M} {\Delta \to B}$. We know that $\Delta \to B$ is a closed
+	type, and since $\FV{M} \subseteq \bar x$, $\LAM {\bar x} M$ is also
+	closed. Thus by strenghtening (Lemma~\ref{lemCoreStrengthen})
+	$\HasTypeCS \Sigma {} {\LAM {\bar x} M} {\Delta \to B}$. We have
+	$\IsTypeCS {\Sigma_1} {} {\Delta \to B}$ and $\InScope \alpha M$ so
+	$\HasTypeCS {\Sigma_1} {} {\LAM {\bar x} M} {\Delta \to B}$ which is
+	what we set out to prove.
+
+    \end{itemize}
+\else
+    The most interesting case is the meta-variable instantiation case where we
+    have to prove that the instantiation constructs a valid extension of the
+    signature. This is proven by showing that the instantiation is well-typed.
+%     This follows from Lemma~\ref{lemRefineSig} once we show that
+%     the instantiation is well-typed.
+\fi
+\end{proof}
+
+Since well-typed terms in {\Core} have normal forms we get the existence of
+normal forms for type checked terms and hence the type checking algorithm is
+terminating.
+
+\begin{corollary}
+    The type checking algorithm is terminating.
+\end{corollary}
+
+Note that type checking terminates with one of three answers: {\em yes it is
+type correct}, {\em no it is not correct}, or {\em it might be correct if the
+meta-variables are instantiated properly}. The algorithm is not complete, since
+finding correct instantiations to the meta-variables is undecidable in the
+general case.
+
+\subsection{Soundness of constraint solving}
+
+In the previous section we proved type checking sound and decidable in the
+absence of constraint solving. We also mostly ignored the constraints, only
+requiring them to be well-formed. In this section we prove that the terms
+produced by the type checker stay well-typed under constraint solving. This is
+done by showing that constraint solving is a signature extension operator in
+the sense of Definition~\ref{defSigExt}.
+
+Previously we only ensured that the {\Core} restriction of the signature was
+well-formed. Now, since we are going to update and remove the constraints of
+guarded constants we have to strengthen the requirements and demand {\em
+consistent} signatures. A signature is consistent if the solution of a guard is
+a sufficient condition for the well-typedness of the definition it is guarding.
+
+\if \DetailedProofs 1
+
+\begin{definition}[Ensures] \label{defEnsures}
+    A set of constraints $\Cs$ {\em ensures} a {\Core} judgement $J$ in a signature
+    $\Sigma$ if, for any $\Sigma_1$ such that
+    $\Extends {\Sigma_1} \Sigma$ and
+    $\ExplicitJudgement {\Sigma_1} {\CheckConstr \Cs \emptyset} {\Sigma_2}$
+    it is the case that $\vdash_{\CoreSig{\Sigma_2}} J$.
+\end{definition}
+
+\begin{remark} \label{lemExtendEnsures}
+    If $\Cs$ ensures $J$ in $\Sigma$ and $\Extends {\Sigma'} \Sigma$ then $\Cs$
+    ensures $J$ in $\Sigma'$.
+\end{remark}
+
+\begin{definition}[Consistent signature] \label{defConsistentSig}
+    A signature $\Sigma$ is said to be {\em consistent} if $\Sigma = \Ext
+    {\Sigma_1} \Ext {\ConstDecl p A M \Cs} \Sigma_2$ implies that $\Cs$ ensures
+    $\HasTypeC {} M A$ in $\Sigma_1$.
+\end{definition}
+
+\fi
+
+In order to prove that type checking preserves consistency, we first need to
+know that the constraints we produce are sound.
+
+\begin{lemma}[Soundness of generated constraints] \label{lemSoundConstraints}
+    The constraints generated during conversion checking ensures that the
+    checked terms are convertible. For instance, if $\EqualType A B \Cs$, then
+    solving $\Cs$ guarantees that $\EqualTypeC \Gamma A B$ in {\Core}.
+\if \DetailedProofs 1
+    More precisely,
+    \begin{itemize}
+	\item \( \begin{array}[t]{l}
+		    \IsTypeCS \Sigma \Gamma A
+		    ~ \wedge ~ \IsTypeCS \Sigma \Gamma B
+		    ~ \wedge ~ \ExplicitJudgement \Sigma {\EqualType A B \Cs} {\Sigma'}
+		    \\ {} \implies \mbox{$\Cs$ ensures $\EqualTypeC \Gamma A B$ in $\Sigma'$}
+	      \end{array} \)
+	\item \( \begin{array}[t]{l}
+		    \HasTypeCS \Sigma \Gamma M A
+		    ~ \wedge ~ \HasTypeCS \Sigma \Gamma N A
+		    ~ \wedge ~ \ExplicitJudgement \Sigma {\Equal M N A \Cs} {\Sigma'}
+		    \\ {} \implies \mbox{$\Cs$ ensures $\EqualC \Gamma M N A$ in $\Sigma'$}
+	      \end{array} \)
+    \end{itemize}
+\fi
+\end{lemma}
+
+\if \DetailedProofs 1
+\begin{proof}
+    Again we highlight some interesting cases.
+    \begin{itemize}
+	\item 
+	
+	The only difficult case is the case of conversion for function types
+	where a new constant $p$ is introduced. There we need to prove
+	$\EqualTypeCS {\Sigma_2} {\Ext \Gamma x : A_1} {B_1} {B_2}$ from
+	$\EqualTypeCS {\Sigma_2} {\Ext \Gamma x : A_1} {B_1} {\SubstD {B_2} {p
+	\, \Gamma \, x}}$
+
+	If $\Sigma_2$ has an empty guard for $p$ then $p \, \Gamma \, x$
+	reduces to $x$ and we are done. If the guard is non-empty we can apply
+	Lemma~\ref{lemCoreEqualDummySubst}, since $p \, \Gamma \, x$ is on weak
+	head normal form, and $p$ is a fresh constant which does not appear in
+	$B_1$.
+
+	\item In the case where $\Cs$ is known (for instance, in the rule for
+	blocked terms), we can apply soundness of conversion checking
+	(Theorem~\ref{thmSoundNoCs}) to get $\TrueConstr {\Sigma_2} \Cs$.
+
+    \end{itemize}
+\end{proof}
+\fi
+
+\if \DetailedProofs 1
+\begin{lemma} \label{lemRefineConsistent}
+    Refinement preserves consistent signatures.
+    More precisely, if
+    \begin{itemize}
+	\item $\HasTypeCS {\Sigma_1} {} M A$
+	\item $\Sigma ~ = ~ \Ext {\Sigma_1} \Ext {\MetaDecl c A} \Sigma_2$
+	\item $\Sigma' ~ = ~ \Ext {\Sigma_1} \Ext {\IMetaDecl c A M} \Sigma_2$
+	\item $\Sigma$ is consistent
+    \end{itemize}
+    then $\Sigma'$ is consistent.
+\end{lemma}
+
+\begin{proof}
+    There are two cases to consider: refinement to the left and to the right of
+    a guard. In the latter case the proof is trivial, and in the former case
+    consistency follows from the fact that refinement extends a signature
+    (Lemma~\ref{lemRefineSig}).
+\end{proof}
+\fi
+
+\begin{lemma}[Type checking preserves consistency] \label{lemTypeCheckConsistent}
+Type checking and conversion checking preserves consistent signatures.
+\if \DetailedProofs 1
+More precisely,
+    \begin{itemize}
+
+	% is type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\IsType e A} {\Sigma'}
+		~ \wedge ~ \IsCtxCS \Sigma \Gamma
+		~ \wedge ~ \mbox{$\Sigma$ is consistent}
+		\\ {} \implies \mbox{$\Sigma'$ is consistent}
+	    \end{array}$
+
+	% check type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\CheckType e A M} {\Sigma'}
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma A
+		~ \wedge ~ \mbox{$\Sigma$ is consistent}
+		\\ {} \implies \mbox{$\Sigma'$ is consistent}
+	    \end{array}$
+
+	% infer type
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\InferType e A M} {\Sigma'}
+		~ \wedge ~ \IsCtxCS \Sigma \Gamma
+		~ \wedge ~ \mbox{$\Sigma$ is consistent}
+		\\ {} \implies \mbox{$\Sigma'$ is consistent}
+	    \end{array}$
+
+	% equal types
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\EqualType A B \Cs} {\Sigma'}
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma A
+		~ \wedge ~ \IsTypeCS \Sigma \Gamma B \\
+		~ \wedge ~ \mbox{$\Sigma$ is consistent}
+		\\ {} \implies \mbox{$\Sigma'$ is consistent}
+	    \end{array}$
+
+	% equal terms
+	\item
+	    $\begin{array}[t]{l}
+		\ExplicitJudgement \Sigma {\Equal M N A \Cs} {\Sigma'}
+		~ \wedge ~ \HasTypeCS \Sigma \Gamma M A
+		~ \wedge ~ \HasTypeCS \Sigma \Gamma N A \\
+		~ \wedge ~ \mbox{$\Sigma$ is consistent}
+		\\ {} \implies \mbox{$\Sigma'$ is consistent}
+	    \end{array}$
+
+    \end{itemize}
+
+    The statements for weak head normal form conversion ($\EqualWhnf M N A
+    \Cs$) and term sequence conversion ($\Equal {\bar M} {\bar N} \Delta \Cs$)
+    are equivalent to that of term conversion.
+\fi
+\end{lemma}
+
+\begin{proof}
+\if \DetailedProofs 1
+    By induction on the derivation. We only need to consider the cases where
+    the signature changes. Adding a (non-guarded) constant trivially preserves
+    consistency, instantiating a meta-variable preserves consistency by
+    Lemma~\ref{lemRefineConsistent}. What remains is to check that new guarded
+    constants are consistent. There are two cases: the conversion rule and
+    conversion checking of function types. In both cases consistency follows
+    from soundness of conversion checking (Lemma~\ref{lemSoundConstraints}).
+\else
+    We have to prove that when we introduce a guarded constant the guard
+    ensures the well-typedness of the value. This follows from
+    Lemma~\ref{lemSoundConstraints}.
+\fi
+\end{proof}
+
+\begin{lemma}[Constraint solving is sound] \label{lemSolveConsistent}
+    If $\Sigma$ is consistent and the solving the constraints yields a
+    signature $\Sigma'$, then $\Sigma'$ is consistent and $\Extends {\Sigma'}
+    \Sigma$.
+\end{lemma}
+
+\begin{proof}
+    Follows from Theorem~\ref{thmSoundNoCs}, Lemma~\ref{lemSoundConstraints},
+    and Lemma~\ref{lemTypeCheckConsistent}.
+\end{proof}
+
+From this follows that we can mix type checking and constraint solving freely,
+so we can add a constraint solving rule to the type checking algorithm. In
+order to obtain optimal approximations we have to solve constraints eagerly,
+i.e as soon as a meta-variable has been instantiated.
+
+\subsection{Relating user expressions and checked terms}
+
+An important property of the type checking algorithm is that the type correct terms
+produced correspond to the expressions being type checked. The correspondance
+is expressed by stating that the only operations the type checker is allowed
+when constructing a term is replacing a $?$ by a term ({\em refinement}) and
+replacing a term by a guarded constant ({\em approximation}).
+
+\if \DetailedProofs 1
+
+\begin{definition}[Approximation]
+    A term $M$ {\em approximates} $M'$ if $M$ can be obtained by replacing
+    subterms of $M'$ by guarded constants $p \, \bar x$.
+\end{definition}
+
+\begin{definition}[Refinement]
+    A term $M$ is a {\em refinment} of a user expression $e$ if $M$ can be
+    obtained by replacing the $?$ in $e$ by concrete terms.
+\end{definition}
+
+\fi
+
+\begin{lemma} \label{lemApproxRefine}
+    If $\CheckType e A M$ then $M$ approximates a refinement of $e$. This
+    property is preserved when unfolding instantiated meta-variables and
+    guarded constants in $M$.
+\end{lemma}
+
+\begin{lemma}
+    If $\CheckType e A M$ then $M$ is an {\em optimal approximation} of a
+    refinement $M'$ of $e$.
+\end{lemma}
+
+\begin{proof}
+The proof relies on the fact that we only introduce guarded constants when
+absolutely necessary and solve the constraints eagerly. This is proven by
+showing that the constraints produced by conversion checking are not only
+sufficient but also necessary for the validity of the judgement.
+\end{proof}
+
+\subsection{Main result}
+
+We now prove the main soundness theorem stating that if all meta-variables are
+instantiated and all guards solved, then the term produced by the type checker
+(extended with constraint solving) is valid in the original signature after
+unfolding the definitions of the meta-variables and guarded constants
+introduced during type checking.
+
+\begin{theorem}[Soundness of type checking] \label{thmMain}
+    If $\Sigma$ is a well-formed {\Core} signature and $\ExplicitJudgement
+    \Sigma {\CheckType e A M} {\Sigma'}$, then if all meta-variables have been
+    instantiated and all guards are empty in $\Sigma'$, then $\HasTypeCS \Sigma
+    \Gamma {M\sigma} A$ where $\sigma$ is the substitution inlining the meta
+    variables and constants in $\Sigma'$. Moreover, $M\sigma$ is a refinement
+    of $e$.
+\end{theorem}
+
+\if \DetailedProofs 1
+\begin{proof}
+    From Theorem~\ref{thmSoundNoCs} follows that $\HasTypeCS {\Sigma'} \Gamma M
+    A$ and Lemma~\ref{lemTypeCheckConsistent} and
+    Lemma~\ref{lemSolveConsistent} give that $\Sigma'$ is a consistent
+    extension of $\Sigma$.  Thus $\sigma$ is well-typed and we have $\HasTypeCS
+    {\Sigma'} \Gamma {M\sigma} A$.
+    Since $M\sigma$ only uses constants from $\Sigma$ we can strengthen the
+    signature to obtain $\HasTypeCS \Sigma \Gamma {M\sigma} A$.
+
+    By Lemma~\ref{lemApproxRefine} we have that $M\sigma$ approximates a
+    refinement of $e$. Since $M\sigma$ does not contain any guarded constants
+    it is a refinement of $e$.
+\end{proof}
+\fi
+

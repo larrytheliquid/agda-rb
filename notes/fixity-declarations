@@ -1,0 +1,387 @@
+Suggestion for how operator fixity should be specified
+------------------------------------------------------
+
+Nils Anders Danielsson
+
+(By fixity I mean associativity and precedence.)
+
+The current scheme is a mess. With Unicode symbols and mixfix
+operators users (such as myself) tend to define more operators than in
+Haskell, and then the Haskell fixity handling is too limited. It is
+very hard to get an overview over a total ordering which specifies how
+tight every operator binds in comparison to every other.
+
+This note describes a way to avoid these problems. The solution is not
+perfect--some limitations are discussed towards the end--but it is
+quite lightweight, so it should be relatively easy to implement and
+try out.
+
+New approach
+------------
+
+Associativity can be specified just as before. An operator is either
+left associative, right associative, or nonassociative. (Note that
+only infix operators can be left or right associative; pre- and
+postfix operators are always nonassociative.)
+
+The basic idea of the new approach to precedence handling is to
+abandon the current total order and instead have a partial order of
+precedences. This is an old idea, which is easy to understand. The
+basic difference compared to the current scheme is that two operators
+of noncomparable precedence cannot be used next to each other without
+inserting parentheses. The only crux is to find a good way of
+specifying the precedences.
+
+I believe that it is a good idea if the precedence of an operator can
+be understood locally, so I suggest that one should only be allowed to
+specify precedences at the binding site (in the defining module) of an
+operator, conservatively extended when new operators are defined.
+(This rules out having "first class precedences", where the
+precedences of an operator are free-standing entities which can be
+exported and imported separately from the operators themselves.)
+
+Precedences are defined for an operator • by relating it to
+previously defined operators. This can be done in three ways:
+
+* infix[lr ] • binds as ∘
+  This means that • (which is left, right or nonassociative) binds in
+  exactly the same way as ∘.
+
+* infix[lr ] • binds tighter-than (op₁…) looser-than (op₂…)
+  This means that • binds strictly tighter than op₁… and strictly
+  looser than op₂…. The two parts tighter-than (…) and looser-than (…)
+  can be given in any order, and one of them can be omitted.
+
+  This declaration is only valid if it does not change the relations
+  of any previously declared operators, i.e., if the precedence
+  relation before this declaration is denoted by ⊰ and the one after
+  this declaration by ⊰′, then the following property must hold:
+    ∀ op₁ ≠ •. ∀ op₂ ≠ •. op₁ ⊰ op₂ ⇔ op₁ ⊰′ op₂.
+  This property ensures some degree of locality for the precedences:
+  To see if/how two operators are related it is enough to inspect the
+  fixity declarations of these two operators, plus those of the
+  operators referred to in these declarations (transitively). It is
+  impossible for an unrelated fixity declaration to change this
+  relation.
+
+* infix[lr ] •
+  With this declaration • becomes unrelated to all other operators.
+
+* No fixity declaration for • is the same as specifying "infix •",
+  i.e. • becomes nonassociative and unrelated to all other operators.
+
+It should also be possible to combine the fixity declarations of
+several operators, for instance as follows:
+  infixl _op₁_ _op₂_ _op₃ binds looser-than (_+_)
+This is equivalent to the following three declarations:
+  infixl _op₁_ binds looser-than (_+_)
+  infixl _op₂_ binds as _op₁_
+  infixl _op₃  binds as _op₁_
+(Note the use of _op₁_ in the last two declarations.)
+
+Some minor details
+------------------
+
+Some minor details (as compared to the current fixity handling in
+Agda):
+
+* Non-operator (function) symbols should still bind tighter than
+  everything else.
+
+* Fixity declarations should of course be scope checked, and an error
+  given if a fixity declaration is given for an operator which is not
+  in scope.
+
+* It should be possible to give fixity declarations to record fields,
+  for instance as follows:
+    infix  Setoid._≈_ binds as _≡_
+    infixl Ring._-_   binds as Ring._+_
+
+* I do not like the fact that, for operators of the same precedence,
+  the following sub-order of precedence is used:
+    * postfix
+    * prefix
+    * infix right associative
+    * infix left associative
+    * infix nonassociative
+  As an example, take the following fixity declarations:
+    infixr 6 _∷_
+    infixl 6 _+_
+    infix  6 -_ _!
+  Currently they result in 5 + 6 ∷ [], - 5 + 6 and - 2 ! parsing as (5
+  + 6) ∷ [], (- 5) + 6 and - (2 !), even though these expressions
+  should not parse at all.
+
+Limitations
+-----------
+
+The scheme outlined above has a limitation, demonstrated by the
+following example:
+
+  Let us say that two libraries, one for sets and one for arithmetic,
+  are developed independently. It is probably unreasonable (if one
+  wants to keep unrelated code separate) for one of these libraries to
+  depend on the other. Hence expressions such as the following won't
+  parse: a + b ∈ c. Parentheses will have to be used: (a + b) ∈ c.
+
+To me this example is not very convincing, though. If the two
+libraries are really separate, then there should not be _any_
+connection between them. If, on the other hand, it is a requirement
+that _+_ should really bind tighter than _∈_, then the libraries are
+not unrelated, but one should import the other.
+
+Another possible problem with the scheme outlined above is its
+implementation. Currently mixfix operator parsing is implemented in
+Agda (more or less) as follows:
+
+* Expressions are first parsed as if every operator was a function
+  symbol. This yields parse trees (rose trees) which need to be
+  post-processed.
+
+* Operator parsing is then done as part of scope-checking. For every
+  symbol sequence (list in the rose tree) in a parsed expression a
+  dedicated parser is generated based on which operator parts are
+  present in the sequence. Scope information is needed for this step,
+  since the relative precedences of the operators and also their
+  associativity are used to construct the parser. The symbol sequence
+  is then parsed using this dedicated parser.
+
+It is currently unclear whether this implementation method can be made
+efficient for the fixity handling scheme outlined above.
+
+Conclusion
+----------
+
+If the implementation can be made efficient, then I believe that the
+scheme outlined above is strictly better than the one we have. It is
+also easy to understand. In other words, I will start thinking about
+the implementation.
+
+------------------------------------------------------------------------
+Improved syntax
+------------------------------------------------------------------------
+
+infix [ε|left|right] <operators>
+  [ε|binds [as <operator>
+           |looser  than <operators>
+           |tighter than <operators>
+           |looser  than <operators> tighter than <operators>
+           |tighter than <operators> looser  than <operators>
+           ]]
+
+------------------------------------------------------------------------
+Refinement
+------------------------------------------------------------------------
+
+Ulf commented that the scheme above is too inflexible. If (the already
+existing) library A defines _+_, and library B defines _&_ (which is
+unrelated to _+_), then it is impossible to define _==_ in library C
+in such a way that _+_ binds tighter than _==_, which in turn binds
+tighter than _&_. In order to accommodate this, let us drop
+transitivity.
+
+Details (based on discussions with Ulf):
+
+  Precedence relations are DAGs, whose nodes are annotated with sets
+  of operators. Let node(•) be the node of operator • (if any), and
+  let n₁ ⊰ n₂ mean that there is an edge from node n₁ to node n₂.
+
+  Fixity declarations get the following meanings:
+
+  • binds as ∘:
+
+    • is added to node(∘).
+
+  • binds looser than ∘₁ tighter than ∘₂:
+
+    A new node annotated with {•} is added,
+    plus an edge from node(∘₁) and an edge from node n for all n with
+      n ⊰ node(∘₁),
+    plus an edge to node(∘₂) and an edge to node n for all n with
+      node(∘₂) ⊰ n.
+
+    Note that this does not create any new dependencies between ∘₁ and
+    ∘₂, but • inherits earlier dependencies.
+
+  A precedence relation now gives rise to a context free grammar in
+  the following way:
+
+  * The top-level production is as follows:
+
+      expr ∷= <atom> | ⋁ {n | n is a node in the graph}
+
+  * For every node n the following productions are added:
+
+      n ∷= prefix-op⁺ n↑
+         | n↑ postfix-op⁺
+         | n↑ infix-non-assoc-op n↑
+         | (n↑ infix-left-assoc-op)⁺ n↑
+         | n↑ (infix-right-assoc-op n↑)⁺
+      n↑ ∷= <atom> | ⋁ {n' | n ⊰ n'}
+      x-op ∷= ⋁ {op-prod | op is an "x" operator annotating n}
+      op-prod ∷= op₁ expr op₂ expr op₃ … op_n
+         (where op_i are the name parts of the mixfix operator op)
+
+  Note that if all operator name parts are unique, and <atom>s don't
+  introduce any ambiguity, then the grammar is unambiguous. However,
+  we don't want to require all operator name parts to be unique, since
+  this can be rather inflexible. (Consider a DSEL containing both
+  if_then_ and if_then_else_, for instance. Or the two operators ⟦_⟧_
+  and ⟦_⟧'_.) All ambiguous parses will be rejected, in many cases
+  with an error message listing all possible parses:
+
+    Ambiguous parse. Could mean any of the following:
+      if x then (if y then a) else b
+      if x then (if y then a else b)
+
+  We expect there to be rather few cases of ambiguity. A large number
+  of potentially ambiguous operators will make it harder to write
+  syntactically correct programs, and programmers will presumably be
+  reluctant to subject themselves to this situation.
+
+------------------------------------------------------------------------
+Sections
+------------------------------------------------------------------------
+
+We can also support sections. Some examples will outline how this can
+be accomplished:
+
+  If we have
+
+    _+_ : ...
+
+  then 5 +_ and _+ 3 are sections. They stand for
+
+    \x -> 5 + x
+
+  and
+
+    \x -> x + 3,
+
+  respectively. Note that +_ becomes a postfix operator, and _+ a
+  prefix operator. Note also that _+_ can be viewed as a section, and
+  does not need to be treated as a special case. (The qualified
+  variant M._+_ still needs special treatment, though.)
+
+  All mixfix operators can be sectioned. For instance, if we have
+
+    if_then_else_ : ...
+
+  then if_then x else y stands for
+
+    \b -> if b then x else y.
+
+  Parsing of sections is accomplished by letting the lexer distinguish
+  different uses of '_':
+
+  * As a wildcard.
+  * At the beginning of an operator.
+  * In the middle of an operator.
+  * At the end of an operator.
+
+  The different uses can be distinguished by examining surrounding
+  white space.
+
+------------------------------------------------------------------------
+Open questions
+------------------------------------------------------------------------
+
+* What is the sub-class of DAGs that the declarations introduced above
+  can give rise to? Not all DAGs can be constructed in this way. Take
+  •⟶•⟶•⟶•, for instance. Could this be overly limiting?
+
+* Does the order of the declarations matter? If it does, then the
+  scheme should be changed, since otherwise we would have a
+  non-declarative language for specifying fixities. (It would not be
+  very nice if the relative precedence of two operators depended on in
+  which order two modules were imported, for instance.)
+
+  Order does not matter for this simple example:
+
+    infix      _≡_
+    infix left _+_ binds tighter than _≡_
+    infix      ¬_  binds looser  than _≡_
+
+  The declarations give rise to the following precedence graph:
+
+    ╭─────╮
+    │ _+_ ├⟵╮
+    ╰──┬──╯ │
+       ↑    │
+    ╭──┴──╮ │
+    │ _≡_ │ │
+    ╰──┬──╯ │
+       ↑    │
+    ╭──┴──╮ │
+    │ ¬_  ├─╯
+    ╰─────╯
+
+  If the order of the declarations is changed to
+
+    infix      _≡_
+    infix      ¬_  binds looser  than _≡_
+    infix left _+_ binds tighter than _≡_
+
+  we still get the same graph. Is this generally true?
+
+------------------------------------------------------------------------
+Summary of important "correctness" criteria
+------------------------------------------------------------------------
+
+• Adding a new declaration should not change the relations between
+  previously declared operators.
+
+• If declarations can be reordered, then the semantics must be
+  independent of their order.
+
+------------------------------------------------------------------------
+A possible problem with the scheme above
+------------------------------------------------------------------------
+
+Consider the following (Agda-like) modules:
+
+  module A where
+    infix _*_
+
+  module B where
+    import A
+    infix _^_ binds tighter-than (_*_)
+
+  module C where
+    import A
+    infix _+_ binds looser-than (_*_)
+
+  module D where
+    import B; import C
+
+In D, do we have node(_+_) ⊰ node(_^_)? If not, then order of
+declarations does (in some sense) matter, since putting the two
+declarations in the same module would lead to a different result.
+However, if we do have node(_+_) ⊰ node(_^_), then the relationship
+between the two operators is not fixed until they are brought into the
+same scope. Neither scenario feels appealing.
+
+------------------------------------------------------------------------
+Refinement of the refinement
+------------------------------------------------------------------------
+
+I am compelled to remove the transitivity emulation from fixity
+declarations. It is too hard to understand. To start with we can
+require the user to specify every relationship explicitly. If this
+should turn out to require too much work, then the following
+extensions seem promising:
+
+• One could invent some notation for specifying the fixity of several
+  operator groups at once, for instance:
+
+    infix (_+_ _-_) < (_*_ _/_) < (_^_)
+
+  The different groups in this kind of declaration would be
+  transitively related.
+
+• One could specify a /module/ in an operator list; this would stand
+  for all the operators exported from the module (top-level, plus
+  perhaps records). Note that this may be a bit coarse. If Agda's open
+  public was more like Haskell's re-exports, then it would be easy to
+  use the module system to package operators for inclusion in fixity
+  declarations, though.

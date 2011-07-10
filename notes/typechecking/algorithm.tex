@@ -1,0 +1,409 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[OT1]{fontenc}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+
+\usepackage{proof}
+
+\newcommand\keyword[1]{\mathbf{#1}}
+\newcommand\Coloneqq{\mathrel{::=}}
+\newcommand\OR{~~|~~}
+\newcommand\Hid[1]{\{#1\}}
+\newcommand\lam[1]{\lambda#1.\,}
+\newcommand\hlam[1]{\lam{\Hid{#1}}}
+\newcommand\tlam[2]{\lam{(#1:#2)}}
+\newcommand\thlam[2]{\lam{\Hid{#1:#2}}}
+\newcommand\ePi[3]{(#1:#2)\to#3}
+\newcommand\ehPi[3]{\{#1:#2\}\to#3}
+\newcommand\vPi[2]{\Pi#1:#2.\,}
+\newcommand\vhPi[2]{\Pi\{#1:#2\}.\,}
+\newcommand\vPiTel[1]{\Pi#1.\,}
+\newcommand\vhPiTel[1]{\vPiTel{\{#1\}}}
+\newcommand\Let[2]{\keyword{let}~#1~\keyword{in}~#2}
+\newcommand\Set[1]{\mathsf{Set}_{#1}}
+\newcommand\Prop{\mathsf{Prop}}
+\newcommand\el{\mathsf{El}}
+\newcommand\El[1]{\el_{#1}\,}
+\newcommand\lub{\sqcup}
+
+\newcommand\APP[2]{\mathsf{app}(#1,#2)}
+\newcommand\HAPP[2]{\mathsf{happ}(#1,#2)}
+\newcommand\Subst[3]{#1[#2/#3]}
+
+\newcommand\GetSort[1]{\mathsf{sortof}(#1)}
+
+% Judgement forms
+\renewcommand\Check[5]{#1\,;\,#2\vdash#3\uparrow#4:#5}
+\newcommand\Infer[5]{#1\,;\,#2\vdash#3\downarrow#4:#5}
+\newcommand\IsType[4]{#1\,;\,#2\vdash#3\uparrow#4~\mathbf{type}}
+\newcommand\Equal[5]{#1\,;\,#2\vdash#3=#4:#5}
+\newcommand\TEqual[4]{#1\,;\,#2\vdash#3=#4}
+\newcommand\Expand[6]{#1\,;\,#2\vdash#3:#4\prec#5:#6}
+\newcommand\CheckDecl[4]{#1\,;\,#2\vdash#3\to#4}
+
+\newcommand\AddGlobalMeta[4]{#1\,;\,#2\vdash{#3}:#4}
+\newcommand\AddLocalMeta[4]{#1\,;\,#2\vdash{#3}:#4}
+
+\title{Agda II Type Checking Algorithm}
+\author{Ulf Norell}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+    Write something nice here.
+
+\section{Syntax}
+
+\subsection{Expressions}
+
+    Expressions have been scope checked, but not type checked. Hence the mix
+    between terms, types and sorts.
+
+    \[\begin{array}{lcl}
+	e & \Coloneqq & x \OR c \OR l \OR ? \OR \_ \\
+	  & \OR & \lam xe \OR \hlam xe \OR \tlam xee \OR \thlam xee \\
+	  & \OR & e\,e \OR e\,\Hid e \OR \Let{\vec\delta}e \\
+	  & \OR & \ePi xee \OR \ehPi xee \OR \Set n \OR \Prop \\
+	l & \Coloneqq & \mathit{integer} \OR \mathit{float} \OR \mathit{string} \OR \mathit{character} \\
+    \end{array}\]
+
+    Constants ($c$) are names of constructors, defined functions, postulates and datatypes.
+
+\subsection{Declarations}
+
+    \[\begin{array}{lcl}
+	\delta & \Coloneqq & \ldots
+    \end{array}\]
+
+\subsection{Terms}
+
+    Terms are type checked versions of expressions (that aren't types). The
+    type checking algorithm produces one of these when type checking. The
+    implementation uses deBruijn variables, but to simplify the presentation
+    we don't do that here.
+
+    \[\begin{array}{lcl}
+	s,t & \Coloneqq & x \OR c \OR l \OR ?_i \\
+	    & \OR & \lam xt \OR \hlam xt \OR s\,t \OR s\,\Hid t
+    \end{array}\]
+
+    Worth noting is that meta variables are now named and that there are no
+    typed lambdas left.
+
+    Terms are supposed to always be on normal form. We do some work in the
+    rules to ensure that this is the case.
+
+\subsection{Types and Sorts}
+
+    After type checking we distinguish between terms, types and sorts.
+
+    \[\begin{array}{lcl}
+	A,B & \Coloneqq & \El\alpha t \OR \vPi xAB \OR \vhPi xAB \OR \alpha \\
+	\alpha,\beta & \Coloneqq & \Set n \OR \Prop \\
+    \end{array}\]
+
+    In some presentation of the system design we had type and sort meta
+    variables. I will try to do without them. What this means is that we can't,
+    for instance, infer the type of a domain-free lambda by introducing a meta
+    variable for the domain type.
+
+    The reason for not having type meta variables is that I'm not sure how they
+    interact with coercions.  Depending on the order you solve constraints you
+    might end up with different instantiations (since different coercions were
+    applied).  It might be that it doesn't matter, but until we're sure I
+    prefer to err on the side of caution.
+
+    If $x\notin\mathit{FV}(B)$ I will sometimes write $A\to B$ for $\vPi xAB$.
+
+\section{Judgement forms}
+
+    In the judgement forms below $\Sigma$ is the signature and contains the
+    type and definition (if any) of the constants currently in scope. $\Gamma$
+    is the context and contains the types of the bound variables.
+
+    \[\begin{array}{ll}
+	\Check\Sigma\Gamma etA	    & \mbox{Type checking, computes $t$.} \\
+	\Infer\Sigma\Gamma etA	    & \mbox{Type inference, computes $t$ and $A$.} \\
+	\IsType\Sigma\Gamma eA	    & \mbox{Checking that $e$ is a type, computes $A$.} \\
+	\Equal\Sigma\Gamma stA	    & \mbox{Typed conversion.} \\
+%	\TEqual\Sigma\Gamma AB	    & \mbox{Type conversion.} \\
+	\Expand\Sigma\Gamma sAtB    & \mbox{Coercing conversion, computes $t$.} \\
+	\CheckDecl\Sigma\Gamma\delta{\Sigma'} & \mbox{Checking declarations, computes $\Sigma'$.}
+    \end{array}\]
+
+    The only non-standard judgement is the coercing conversion which replaces
+    the convertibility judgement for types. The purpose of this judgement form
+    is to insert things that have been hidden. For instance, suppose that
+    $f:\vhPi A{\Set0}\vPi xAA$ in $\Sigma$ and we want to check
+    $\Check\Sigma\Gamma ft{\vPi xBB}$. This should succeed with $t =
+    f\,\Hid{B}$. The reason it does succeed is because we can coerce $f$ to
+    have the desired type:
+    \[
+	\Expand\Sigma\Gamma f{\vhPi A{\Set0}\vPi xAA}{f\,\Hid{B}}{\vPi xBB}
+    \]
+
+\section{Judgements}
+
+\subsection{Checking}
+
+    Type checking is used only as a last resort. If we can infer the type,
+    that's what we do.
+
+    \[\begin{array}{c}
+	\infer{ \Check\Sigma\Gamma etB }
+	{ \Infer\Sigma\Gamma esA
+	& \Expand\Sigma\Gamma sAtB
+	}
+    \end{array}\]
+
+    The coercing conversion inserts any hidden lambdas or applications that are
+    missing from $s$.
+
+    We can't infer the type of domain free lambdas.
+
+    \[\begin{array}{c}
+	\infer{ \Check\Sigma\Gamma{\lam xe}{\lam xt}{\vPi xAB} }
+	      { \Check\Sigma{\Gamma,x:A}etB }
+	\\{}\\
+	\infer{ \Check\Sigma\Gamma{\hlam xe}{\hlam xt}{\vhPi xAB} }
+	      { \Check\Sigma{\Gamma,x:A}etB }
+    \end{array}\]
+
+    If we're checking a non-hidden lambda against a hidden function type we
+    should insert the appropriate number of hidden lambdas. There is some
+    abuse of notation to make the rule more readable: If $\Delta =
+    (x_1:A_1)\ldots(x_n:A_n)$, then $\hlam\Delta t$ means $\hlam{x_1}\ldots\hlam{x_n}t$ and
+    $\vhPiTel\Delta B$ means $\vhPi{x_1}{A_1}\ldots\vhPi{x_n}{A_n}B$.
+
+    \[\begin{array}{c}
+	\infer{ \Check\Sigma\Gamma{\lam xe}{\hlam\Delta\lam xt}{\vhPiTel\Delta\vPi xAB} }
+	{ \Check\Sigma{\Gamma,\Delta,x:A} etB
+	}
+    \end{array}\]
+
+    The type of meta variables can't be inferred either.
+
+    \[\begin{array}{ccc}
+	\infer[\AddGlobalMeta\Sigma\Gamma{?_i}A]{\Check\Sigma\Gamma{{?}}{{?_i}}A}{}
+	    &&
+	\infer[\AddLocalMeta\Sigma\Gamma{?_i}A]{\Check\Sigma\Gamma\_{{?_i}}A}{}
+    \end{array}\]
+
+    Let bindings can be inferred only if the body can be inferred, so we need a
+    checking rule in case it can't.
+
+    \[\begin{array}{c}
+	\infer{ \Check\Sigma\Gamma{\Let\delta e}tA }
+	{ \CheckDecl\Sigma\Gamma\delta{\Sigma'}
+	& \Check{\Sigma'}\Gamma etA
+	}
+    \end{array}\]
+
+    An alternative approach would be to infer the type of everything, inserting
+    meta variables when we don't know.  This would require type and sort meta
+    variables, though.
+
+\subsection{Inference}
+
+    Inferring the type of a variable or a constant amounts to looking it up in
+    the context or signature. This will never fail, since the expressions have
+    been scope checked prior to type checking.
+
+    \[\begin{array}{ccc}
+	\infer{\Infer\Sigma\Gamma xx{\Gamma(x)}}{} &&
+	\infer{\Infer\Sigma\Gamma cc{\Sigma(x)}}{}
+    \end{array}\]
+
+    Literals have predefined types.
+    \[\begin{array}{c}
+	\infer{\Infer\Sigma\Gamma ll{\mathsf{typeof}(l)}}{}
+    \end{array}\]
+
+    There are three rules for application. The first two are for the easy cases
+    where all implicit arguments have been made explicit.
+    \[\begin{array}{c}
+	\infer{ \Infer\Sigma\Gamma{e_1\,e_2}{\APP st}{\Subst Btx} }
+	{ \Infer\Sigma\Gamma{e_1}s{\vPi xAB}
+	& \Check\Sigma\Gamma{e_2}tA
+	}
+	\\{}\\
+	\infer{ \Infer\Sigma\Gamma{e_1\,\Hid{e_2}}{\HAPP st}{\Subst Btx} }
+	{ \Infer\Sigma\Gamma{e_1}s{\vhPi xAB}
+	& \Check\Sigma\Gamma{e_2}tA
+	}
+    \end{array}\]
+    The functions $\APP --$ and $\HAPP --$ perform $\beta$-reductions and
+    definition unfolding if necessary, to make sure that terms are on normal
+    form. The third rule handles the case when you apply a function expecting
+    hidden arguments to a non-hidden argument, in which case we have to fill in
+    the hidden arguments with meta variables.
+    \[\begin{array}{c}
+	\infer[\AddLocalMeta\Sigma\Gamma{\vec ?}\Delta]
+	{ \Infer\Sigma\Gamma{e_1\,e_2}{\APP{\HAPP{s}{\vec{?}}}t}{B[\vec{?}/\Delta,t/x]} }
+	{ \Infer\Sigma\Gamma{e_1}s{\vhPiTel\Delta\vPi xAB}
+	& \Check\Sigma\Gamma{e_2}t{\Subst A{\vec ?}\Delta}
+	}
+    \end{array}\]
+    A consequence of these rules is that when you give a hidden argument
+    explicitly it is always interpreted as the left-most hidden argument, so
+    $f\,\Hid{x}\,y$ is the same as $f\,\Hid{x}\,\Hid{\_}\,y$ for an $f$ of the
+    appropriate type.
+
+    The inference rule for let is the same as the checking rule.
+    \[\begin{array}{c}
+	\infer{ \Infer\Sigma\Gamma{\Let\delta e}tA }
+	{ \CheckDecl\Sigma\Gamma\delta{\Sigma'}
+	& \Infer{\Sigma'}\Gamma etA
+	}
+    \end{array}\]
+
+\subsection{Computing sorts}
+
+    Types contain enough information to retrieve the sort.
+
+    \[\begin{array}{lcl}
+	\GetSort{\El\alpha t} & = & \alpha \\
+	\GetSort{\vPi xAB} & = & \GetSort A\lub\GetSort B \\
+	\GetSort{\vhPi xAB} & = & \GetSort A\lub\GetSort B \\
+	\GetSort{\Set n} & = & \Set{n+1} \\
+	\GetSort{\Prop} & = & \Set1 \\
+	{}\\
+	\Set n\lub\Set m & = & \Set{\mathsf{max}(n,m)} \\
+	\Prop\lub\Prop & = & \Prop \\
+	\Prop\lub\Set n & = & \Set1\lub\Set n \\
+	\Set n\lub\Prop & = & \Set n\lub\Set 1 \\
+    \end{array}\]
+
+    In PTS terms we have the rule $(\alpha,\beta,\alpha\lub\beta)$.
+    We might want to consider having $(\Set0,\Prop,\Prop)$ as well.
+
+\subsection{Is type}
+
+    The {\em is type} judgement checks that an expression is a valid type and
+    returns that type.  It could also compute its sort but since we can easily get the
+    sort of a type, it isn't necessary.
+
+    \[\begin{array}{c}
+	\infer
+	{ \IsType\Sigma\Gamma e{\El\alpha t} }
+	{ \Infer\Sigma\Gamma et\alpha }
+    \end{array}\]
+    
+    \[\begin{array}{c}
+	\infer
+	{ \IsType\Sigma\Gamma{\ePi x{e_1}{e_2}}{\vPi xAB} }
+	{ \IsType\Sigma\Gamma{e_1}A
+	& \IsType\Sigma{\Gamma,x:A}{e_2}B
+	} \\{}\\
+	\infer
+	{ \IsType\Sigma\Gamma{\ehPi x{e_1}{e_2}}{\vhPi xAB} }
+	{ \IsType\Sigma\Gamma{e_1}A
+	& \IsType\Sigma{\Gamma,x:A}{e_2}B
+	}
+    \end{array}\]
+
+    \[\begin{array}{c}
+	\infer
+	{ \IsType\Sigma\Gamma\alpha{\GetSort\alpha} }
+	{}
+    \end{array}\]
+
+\subsection{Coercing conversion}
+
+    The coercing conversion $\Expand\Sigma\Gamma sAtB$ computes a $t$ of type
+    $B$ given an $s$ of type $A$, by adding hidden applications or lambdas to
+    $s$ until the types $A$ and $B$ match.
+
+%     In the following two rules $C$ should not be a hidden function space
+%     ($\vhPi xAB$).
+    \[\begin{array}{c}
+	\infer[\AddLocalMeta\Sigma\Gamma{?_i}A]
+	{ \Expand\Sigma\Gamma s{\vhPi xAB}tC }
+	{ \Expand\Sigma\Gamma{\HAPP s{?_i}}{\Subst B{?_i}x}tC }
+	\\{}\\
+	\infer
+	{ \Expand\Sigma\Gamma sC{\hlam xt}{\vhPi xAB} }
+	{ \Expand\Sigma{\Gamma,x:A}sCtB }
+    \end{array}\]
+    The first rule applies when $C$ is not a hidden function space, and the
+    second rule is applicable for any $C$. This has the effect of
+    $\eta$-expanding functions with hidden arguments. This allows, for
+    instance, $s:\vhPiTel{A,B:\Set0}A\to B\to A$ to be coerced to $\hlam
+    As\,\Hid A\,\Hid A : \vhPi A{\Set0}A\to A\to A$.
+
+    If both types are normal function spaces we $\eta$-expand.
+    \[\begin{array}{c}
+	\infer
+	{ \Expand\Sigma\Gamma s{\vPi xAB}{\lam ys'}{\vPi y{A'}B'} }
+	{ \Expand\Sigma{\Gamma,y:A'}y{A'}tA
+	& \Expand\Sigma{\Gamma,y:A'}{s\,t}{\Subst Btx}{s'}{B'}
+	}
+    \end{array}\]
+    This allows us to perform coercions in higher order functions. For instance, 
+    \[
+	\Expand\Sigma\Gamma f{(B\to B)\to C}
+	    {\lam xf\,(x\,\Hid{B})}
+	    {(\vhPi A{\Set0}A\to A)\to C}
+    \]
+    The last two cases are when the types are $\el$s or sorts. In neither case
+    are there any coercions.
+    \[\begin{array}{ccc}
+	\infer
+	{ \Expand\Sigma\Gamma t\alpha t\alpha }
+	{}
+	&&
+	\infer
+	{ \Expand\Sigma\Gamma s{\El\alpha t_1}s{\El\alpha t_2} }
+	{ \Equal\Sigma\Gamma{t_1}{t_2}\alpha }
+    \end{array}\]
+
+\subsection{Conversion}
+
+    The conversion checking is type directed. This gives us $\eta$-equality for
+    functions in a nice way. It also makes it possible to introduce proof
+    irrelevance with a rule like this:
+    \[\left(\begin{array}{c}
+	\infer
+	{ \Equal\Sigma\Gamma pqP }
+	{ \GetSort{P} = \Prop }
+    \end{array}\right)\]
+    We don't do that at this point though, but only make use of the types in the
+    function case:
+    \[\begin{array}{c}
+	\infer
+	{ \Equal\Sigma\Gamma st{\vPi xAB} }
+	{ \Equal\Sigma{\Gamma,x:A}{\APP sx}{\APP tx}B
+	}
+	\\{}\\
+	\infer
+	{ \Equal\Sigma\Gamma st{\vhPi xAB} }
+	{ \Equal\Sigma{\Gamma,x:A}{\HAPP sx}{\HAPP tx}B
+	}
+    \end{array}\]
+
+    There are a number of notation abuses in the following two rules. Firstly,
+    $\Equal\Sigma\Gamma{\vec s}{\vec t}\Delta$ denotes the extension of the
+    conversion judgement to sequences of terms. I am also a bit sloppy with the
+    hiding: in $\vPiTel\Delta A$, $\Delta$ can contain both hidden and non-hidden
+    things. Consequently when I say $x\,\vec s$ it includes hidden applications.
+    \[\begin{array}{c}
+	\infer
+	{ \Equal\Sigma\Gamma{x\,\vec s}{x\,\vec t}A }
+	{ x:\vPiTel\Delta A'\in\Gamma
+	& \Equal\Sigma\Gamma{\vec s}{\vec t}\Delta
+	}
+	\\{}\\
+	\infer
+	{ \Equal\Sigma\Gamma{c\,\vec s}{c\,\vec t}A }
+	{ c:\vPiTel\Delta A'\in\Sigma
+	& \Equal\Sigma\Gamma{\vec s}{\vec t}\Delta
+	}
+    \end{array}\]
+    
+
+\subsection{Declarations}
+
+\end{document}

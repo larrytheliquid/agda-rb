@@ -1,0 +1,3 @@
+Issue216.agda:16,11-26
+S i != i of type Level
+when checking that the expression (R : Set i) → R has type Set i

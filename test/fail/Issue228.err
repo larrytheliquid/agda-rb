@@ -1,0 +1,3 @@
+Issue228.agda:30,5-18
+Set (suc zero ⊔ ∞) != Set
+when checking that the expression Large × Small has type Set

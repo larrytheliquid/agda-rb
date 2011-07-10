@@ -1,0 +1,119 @@
+
+We use Martin-L\"of's logical
+framework~\cite{nordstroemPeterssonSmith:handbookLICS} as the underlying logic.
+%
+The choice of underlying logic is not crucial--the type checking algorithm
+presented in this paper can be extended to more feature-rich logics with, for
+instance, recursive definitions, pattern matching, and universe hierachies.
+\if \NoteOnPatternMatching 1
+See Section~\ref{secAddPatternMatching} for a note on how to extend it to
+pattern matching.
+\fi
+
+\paragraph*{Syntax} The syntax of {\Core} is given by the following grammar.
+
+{\small
+\[\begin{array}{lclr}
+    A, B   & ::= & \SET \Or M \Or \PI xAA	      & \mathit{types} \\
+    M, N   & ::= & x \Or c \Or M\,M \Or \LAM xM	      & \mathit{terms} \\
+    \Gamma, \Delta & ::= & () \Or \Gamma,x:A	      & \mathit{contexts} \\
+    \Sigma & ::= & () \Or \Sigma,c:A \Or \Sigma,c:A=M & \mathit{signatures} \\
+\end{array}\]
+}
+
+We assume countable sets of variables and constants and we identify terms up to
+$\alpha$-conversion. We adopt the convention that variables in contexts are
+distinct. Similarly a constant may not be declared in a signature more than
+once.
+
+Repeated application $M \, N_1 \, \dots \, N_k$ is abbreviated $M \, \bar N$.
+%
+Given a context $\Gamma = x_1 : A_1, \ldots, x_n : A_n$ we sometimes write
+$\LAM \Gamma M$ for $\LAM {x_1} \ldots \LAM {x_n} M$ and $M \, \Gamma$ for $M
+\, \bar x$.
+%
+Capture avoiding substitution of $N$ for $x$ in $M$ is written $\Subst M x N$,
+or $\SubstD M N$ when $x$ is clear from the context.
+%
+For dependent function types $\PI xAB$, we write $A \to B$ when $x$ is not free
+in $B$.
+%
+The signature contains axioms and non-recursive definitions.
+
+\paragraph*{Judgements} The type system of {\Core} is presented in six mutually
+dependent judgement forms.
+
+{\small
+\[\begin{array}{lcl}
+    \IsSigCS\Sigma && \mbox{$\Sigma$ is a valid signature} \\
+    \IsCtxCS\Sigma\Gamma && \mbox{$\Gamma$ is a valid context} \\
+    \IsTypeCS\Sigma\Gamma A && \mbox{$A$ is a valid type in $\Gamma$} \\
+    \HasTypeCS\Sigma\Gamma MA && \mbox{$M$ has type $A$ in $\Gamma$} \\
+    \EqualTypeCS\Sigma\Gamma AB && \mbox{$A$ and $B$ are convertible types in $\Gamma$}\\
+    \EqualCS\Sigma\Gamma MNA &~& \mbox{$M$ and $N$ are convertible terms of type $A$ in $\Gamma$} \\
+\end{array}\]
+}
+
+The typing rules follows standard presentations of type
+theory~\cite{nordstroemPeterssonSmith:handbookLICS}.
+
+\if \DetailedProofs 1
+
+\paragraph*{Properties} When proving the properties of the type checking
+algorithm in Section~\ref{secRules} we will need the following properties of
+{\Core}.
+
+\begin{lemma}[Uniqueness of types] \label{lemCoreEqType}
+    \[	\infer{ \EqualTypeC \Gamma A B }
+	{ \HasTypeC \Gamma {c \, \bar M} A
+	& \HasTypeC \Gamma {c \, \bar M} B 
+	}
+    \]
+\end{lemma}
+
+\begin{lemma} \label{lemCoreAppInv}
+    \[	\infer{ \HasTypeC \Gamma {\bar M} \Delta }
+	{ \HasTypeC \Gamma c {\Delta \to B}
+	& \HasTypeC \Gamma {c \, \bar M} {B'}
+	}
+    \]
+\end{lemma}
+
+\begin{lemma}[Shadowing] \label{lemCoreShadow}
+    \[	\infer{ \HasTypeC \Gamma {\LAM xM} {\PI xAB}}
+	{ \HasTypeC \Gamma M B 
+	& \HasTypeC \Gamma x A
+	}
+    \]
+\end{lemma}
+
+\begin{lemma}[Substitution] \label{lemCoreSubstType}
+    \[	\infer{ \IsTypeC \Gamma {\Subst B x M} }
+	{ \IsTypeC {\Ext \Gamma x:A} B 
+	& \HasTypeC \Gamma M A
+	}
+    \]
+\end{lemma}
+
+\begin{lemma}[Subject reduction] \label{lemCoreSubjectReduction}
+    \[	\infer{ \HasTypeC \Gamma {M'} A }
+	{ \HasTypeC \Gamma M A & \whnf M {M'} 	}
+    \]
+\end{lemma}
+
+\begin{lemma}[Strengthening] \label{lemCoreStrengthen}
+    \[	\infer{ \HasTypeC \Gamma M B }
+	{ \HasTypeC {\Ext \Gamma {x : A}} M B
+	& x \notin \FV{M} \cup \FV{B}
+	}
+    \]
+\end{lemma}
+
+\begin{lemma} \label{lemCoreEqualDummySubst}
+    If $\EqualTypeCS \Sigma \Gamma {B_1} {\SubstD {B_2} {h \, \bar M}}$ where $h
+    \, \bar M$ is on weak head normal form and the head $h$ does not occur in
+    $B_1$, then for any term $M$ of the right type we have $\EqualTypeCS \Sigma
+    \Gamma {B_1} {\SubstD {B_2} M}$.
+\end{lemma}
+
+\fi

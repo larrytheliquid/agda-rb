@@ -1,0 +1,3 @@
+LevelLiterals.agda:13,19-30
+Set (suc zero ⊔ .ℓ) != Set
+when checking that the expression (A → ⊥) → ⊥ has type Set
