@@ -37,7 +37,7 @@ class Pretty a where
     pretty :: Nat -> Int -> a -> String
 
 instance (Pretty a, Pretty b) => Pretty (a,b) where
-  pretty n i (x,y) = pretty n i x ++ ": " ++ pretty n (i+1) y
+  pretty n i (x,y) = pretty n i x ++ " => " ++ pretty n (i+1) y
 
 -- Pretty-print collections
 
@@ -67,15 +67,15 @@ instance Pretty Exp where
   pretty n i (Self)                 = "exports"
   pretty n i (Local x)              = pretty n i x
   pretty n i (Global m)             = pretty n i m
-  pretty n i (Undefined)            = "undefined"
+  pretty n i (Undefined)            = "nil"
   pretty n i (String s)             = "\"" ++ unescapes s ++ "\""
   pretty n i (Char c)               = "\"" ++ unescape c ++ "\""
   pretty n i (Integer x)            = show x
   pretty n i (Double x)             = show x
   pretty n i (Lambda x e)           =
-    "function (" ++
+    "lambda do |" ++
       intercalate ", " (pretties (n+x) i (map LocalId [x-1, x-2 .. 0])) ++
-    ") " ++ block (n+x) i e
+    "| " ++ block (n+x) i e ++ " end"
   pretty n i (Object o) | null o    = "{}"
   pretty n i (Object o) | otherwise =
     "{" ++ br (i+1) ++ intercalate ("," ++ br (i+1)) (pretties n i o) ++ br i ++ "}"
@@ -99,7 +99,7 @@ modname :: GlobalId -> String
 modname (GlobalId ms) = "\"" ++ intercalate "." ms ++ "\""
 
 moddec :: GlobalId -> String
-moddec m = "var " ++ pretty 0 0 m ++ " = require (" ++ modname m ++ ");"
+moddec m = "var " ++ pretty 0 0 m ++ " = require_export (" ++ modname m ++ ");"
 
 instance Pretty Module where
   pretty n i (Module m is e) =
