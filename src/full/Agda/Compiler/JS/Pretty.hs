@@ -79,7 +79,7 @@ instance Pretty Exp where
   pretty n i (Object o) | null o    = "{}"
   pretty n i (Object o) | otherwise =
     "{" ++ br (i+1) ++ intercalate ("," ++ br (i+1)) (pretties n i o) ++ br i ++ "}"
-  pretty n i (Apply f es)           = pretty n i f ++ "(" ++ intercalate ", " (pretties n i es) ++ ")"
+  pretty n i (Apply f es)           = pretty n i f ++ "[" ++ intercalate ", " (pretties n i es) ++ "]"
   pretty n i (Lookup e l)           = pretty n i e ++ "[" ++ pretty n i l ++ "]"
   pretty n i (If e f g)             =
     "(" ++ pretty n i e ++ "? " ++ pretty n i f ++ ": " ++ pretty n i g ++ ")"
@@ -103,6 +103,6 @@ moddec m = "var " ++ pretty 0 0 m ++ " = require_export (" ++ modname m ++ ");"
 
 instance Pretty Module where
   pretty n i (Module m is e) =
-    "module.id = " ++ modname m ++ ";" ++ br i ++
+    "mod = " ++ modname m ++ ";" ++ br i ++
     intercalate (br i) (map moddec is) ++ br i ++
     "exports = " ++ pretty n i e ++ ";" ++ br i

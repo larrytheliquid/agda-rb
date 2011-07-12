@@ -96,13 +96,13 @@ compile i = do
 -- Naming
 --------------------------------------------------
 
-prefix  = "jAgda"
+prefix  = "Ragda"
 
 jsMod :: ModuleName -> GlobalId
 jsMod m = GlobalId (prefix : map show (mnameToList m))
 
 jsFileName :: GlobalId -> String
-jsFileName (GlobalId ms) = intercalate [pathSeparator] ms ++ ".js"
+jsFileName (GlobalId ms) = intercalate [pathSeparator] ms ++ ".rb"
 
 jsMember :: Name -> MemberId
 jsMember n = MemberId (show n)
