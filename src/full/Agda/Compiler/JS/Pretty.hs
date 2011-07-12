@@ -89,14 +89,14 @@ instance Pretty Exp where
 
 block :: Nat -> Int -> Exp -> String
 block n i (If e f g) = "{" ++ br (i+1) ++ block' n (i+1) (If e f g) ++ br i ++ "}"
-block n i e          = "{" ++ br (i+1) ++ "return " ++ pretty n (i+1) e ++ ";" ++ br i ++ "}"
+block n i e          = "{" ++ br (i+1) ++ pretty n (i+1) e ++ ";" ++ br i ++ "}"
 
 block' :: Nat -> Int -> Exp -> String
 block' n i (If e f g) = "if (" ++ pretty n i e ++ ") " ++ block n i f ++ " else " ++ block' n i g
 block' n i e          = block n i e
 
 modname :: GlobalId -> String
-modname (GlobalId ms) = "\"" ++ intercalate "." ms ++ "\""
+modname (GlobalId ms) = "\"" ++ intercalate "::" ms ++ "\""
 
 moddec :: GlobalId -> String
 moddec m = "var " ++ pretty 0 0 m ++ " = require_export (" ++ modname m ++ ");"
