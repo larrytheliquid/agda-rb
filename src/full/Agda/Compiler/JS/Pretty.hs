@@ -64,7 +64,7 @@ instance Pretty MemberId where
 -- Pretty print expressions
 
 instance Pretty Exp where
-  pretty n i (Self)                 = "exports"
+  pretty n i (Self)                 = "@context"
   pretty n i (Local x)              = pretty n i x
   pretty n i (Global m)             = pretty n i m
   pretty n i (Undefined)            = "nil"
@@ -88,21 +88,26 @@ instance Pretty Exp where
   pretty n i (Const c)              = c
 
 block :: Nat -> Int -> Exp -> String
-block n i (If e f g) = "{" ++ br (i+1) ++ block' n (i+1) (If e f g) ++ br i ++ "}"
-block n i e          = "{" ++ br (i+1) ++ pretty n (i+1) e ++ ";" ++ br i ++ "}"
+block n i (If e f g) = br (i+1) ++ block' n (i+1) (If e f g) ++ br i
+block n i e          = br (i+1) ++ pretty n (i+1) e ++ br i
 
 block' :: Nat -> Int -> Exp -> String
-block' n i (If e f g) = "if (" ++ pretty n i e ++ ") " ++ block n i f ++ " else " ++ block' n i g
+block' n i (If e f g) = "if (" ++ pretty n i e ++ ") " ++ block n i f ++ " else " ++ block' n i g ++ " end"
 block' n i e          = block n i e
 
-modname :: GlobalId -> String
-modname (GlobalId ms) = "\"" ++ intercalate "::" ms ++ "\""
+modOpen :: GlobalId -> String
+modOpen (GlobalId ms) = "module " ++ intercalate " module " ms
 
-moddec :: GlobalId -> String
-moddec m = "var " ++ pretty 0 0 m ++ " = require_export (" ++ modname m ++ ");"
+modClose :: GlobalId -> String
+modClose (GlobalId ms) = intercalate "" (replicate (length ms) "end ")
+
+-- moddec :: GlobalId -> String
+-- moddec m = "var " ++ pretty 0 0 m ++ " = require_export (" ++ modopen m ++ ")"
 
 instance Pretty Module where
   pretty n i (Module m is e) =
-    "mod = " ++ modname m ++ ";" ++ br i ++
-    intercalate (br i) (map moddec is) ++ br i ++
-    "exports = " ++ pretty n i e ++ ";" ++ br i
+    modOpen m ++ br i ++ br i ++
+    -- intercalate (br i) (map moddec is) ++ br i ++
+    "def self.[](k) @context[k.to_s] end" ++ br i ++ br i ++
+    "@context = " ++ pretty n i e ++ br i ++ br i ++
+    modClose m ++ br i
