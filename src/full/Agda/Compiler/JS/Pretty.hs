@@ -76,9 +76,9 @@ instance Pretty Exp where
     "lambda do |" ++
       intercalate ", " (pretties (n+x) i (map LocalId [x-1, x-2 .. 0])) ++
     "| " ++ block (n+x) i e ++ " end"
-  pretty n i (Object o) | null o    = "{}"
+  pretty n i (Object o) | null o    = "Object.new"
   pretty n i (Object o) | otherwise =
-    "{" ++ br (i+1) ++ intercalate ("," ++ br (i+1)) (pretties n i o) ++ br i ++ "}"
+    "struct(" ++ br (i+1) ++ intercalate ("," ++ br (i+1)) (pretties n i o) ++ br i ++ ")"
   pretty n i (Apply f es)           = pretty n i f ++ "[" ++ intercalate ", " (pretties n i es) ++ "]"
   pretty n i (Lookup e l)           = pretty n i e ++ "[" ++ pretty n i l ++ "]"
   pretty n i (If e f g)             =
@@ -108,8 +108,9 @@ instance Pretty Module where
   pretty n i (Module m is e) =
     modOpen m ++ br i ++ br i ++
     -- intercalate (br i) (map moddec is) ++ br i ++
+    "def self.[](k, *args) args.inject(@context[k]) {|acc, arg| acc[arg] } end" ++ br i ++ br i ++
+    "private" ++ br i ++ br i ++
     "def self.method_missing(*args, &block) self[*args] end" ++ br i ++ br i ++
-    "def self.[](k, *args) args.inject(@context[k.to_s]) {|acc, arg| " ++
-    "acc[arg.is_a?(Symbol) ? arg.to_s : arg] } end" ++ br i ++ br i ++
+    "def self.struct(attrs) Struct.new(*attrs.keys.map(&:to_sym)).new(*attrs.values) end" ++ br i ++ br i ++
     "@context = " ++ pretty n i e ++ br i ++ br i ++
     modClose m ++ br i
