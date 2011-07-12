@@ -11,3 +11,11 @@
 MAlonzo
 Default
 _darcs
+autom4te.cache
+config.log
+config.status
+configure
+dist
+mk/config.mk
+src/main/dist
+
