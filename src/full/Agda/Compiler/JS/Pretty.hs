@@ -108,6 +108,8 @@ instance Pretty Module where
   pretty n i (Module m is e) =
     modOpen m ++ br i ++ br i ++
     -- intercalate (br i) (map moddec is) ++ br i ++
-    "def self.[](k) @context[k.to_s] end" ++ br i ++ br i ++
+    "def self.method_missing(*args, &block) self[*args] end" ++ br i ++ br i ++
+    "def self.[](k, *args) args.inject(@context[k.to_s]) {|acc, arg| " ++
+    "acc[arg.is_a?(Symbol) ? arg.to_s : arg] } end" ++ br i ++ br i ++
     "@context = " ++ pretty n i e ++ br i ++ br i ++
     modClose m ++ br i
