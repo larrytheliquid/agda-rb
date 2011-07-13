@@ -64,7 +64,7 @@ instance Pretty MemberId where
 -- Pretty print expressions
 
 instance Pretty Exp where
-  pretty n i (Self)                 = "@context"
+  pretty n i (Self)                 = "CONTEXT"
   pretty n i (Local x)              = pretty n i x
   pretty n i (Global m)             = pretty n i m
   pretty n i (Undefined)            = "nil"
@@ -108,8 +108,6 @@ instance Pretty Module where
   pretty n i (Module m is e) =
     modOpen m ++ br i ++ br i ++
     -- intercalate (br i) (map moddec is) ++ br i ++
-    "def self.method_missing(*args, &block) self[*args] end" ++ br i ++ br i ++
-    "def self.[](k, *args) args.inject(@context[k.to_s]) {|acc, arg| " ++
-    "acc[arg.is_a?(Symbol) ? arg.to_s : arg] } end" ++ br i ++ br i ++
-    "@context = " ++ pretty n i e ++ br i ++ br i ++
+    "def self.[](k) CONTEXT[k] end" ++ br i ++ br i ++
+    "CONTEXT = " ++ pretty n i e ++ br i ++ br i ++
     modClose m ++ br i
